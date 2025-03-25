@@ -1,58 +1,92 @@
+import os
+import sys
+import threading
+from time import sleep
 import customtkinter as Ctk
 from CTkMessagebox import CTkMessagebox
-import youtubedown
-import imgConverter
-import videoConverter
-import speedtest
 from PIL import Image
-import time
-import threading
-import os
-import ffmpeg
-import cv2
-import numpy as np
-import mss
-import pytesseract
-import pygetwindow as gw
-from deep_translator import GoogleTranslator
-import keyboard
-import mouse
-import ctypes
-from time import sleep
-import random
-import sys
-import os
 
-# Fix potential sys.stdout issues in PyInstaller EXE
+# Configure the customtkinter appearance - this is lightweight
+Ctk.set_appearance_mode("dark")
+Ctk.set_default_color_theme("blue")
+
+# Add the current directory to the path to ensure modules can be found
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+# Basic imports needed for core functionality
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
 
+# Import utilities for resource path handling
+def get_resource_path(relative_path):
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 
 class App(Ctk.CTk):
     def __init__(self):
+        # Initialize the main window as quickly as possible
         super().__init__()
         self.title("Tooler")
         self.geometry("800x500")
-
+        
+        # Initialize minimal variables needed for startup
         self.current_frame = None
         self.menu_frame = None
+        
+        # Show the homepage immediately
         self.show_homepage()
-
-        #dette er for oversettelse toolen
-        #----------------------------------
+        
+        # Initialize state variables
         self.running = False
         self.bbox = None
         self.custom_bbox = None  
         self.last_messages = []
-        #----------------------------------
+        
+        # Lazy-loaded module instances
+        self._translator_engine = None
+        self._video_converter = None
+        self._auto_clicker = None
+        self._speed_tester = None
 
+    # Lazy loading methods for modules
+    def _get_translator_engine(self):
+        if self._translator_engine is None:
+            from core.translator import TranslatorEngine
+            self._translator_engine = TranslatorEngine()
+        return self._translator_engine
+        
+    def _get_video_converter(self):
+        if self._video_converter is None:
+            from core.video_converter import VideoConverter
+            self._video_converter = VideoConverter()
+        return self._video_converter
+        
+    def _get_auto_clicker(self):
+        if self._auto_clicker is None:
+            from core.auto_clicker import AutoClicker
+            self._auto_clicker = AutoClicker()
+        return self._auto_clicker
+        
+    def _get_speed_tester(self):
+        if self._speed_tester is None:
+            from core.speed_tester import SpeedTester
+            self._speed_tester = SpeedTester()
+        return self._speed_tester
 
     def show_homepage(self):
         if self.current_frame or self.menu_frame:
-            self.current_frame.destroy()
-            self.menu_frame.destroy()
+            if self.current_frame:
+                self.current_frame.destroy()
+            if self.menu_frame:
+                self.menu_frame.destroy()
             
         self.destroy_main_interface()
 
@@ -68,31 +102,19 @@ class App(Ctk.CTk):
         whats_new = Ctk.CTkLabel(self.current_frame, text="Whats new? ", font=("Arial", 20))
         whats_new.pack(side="top", padx=(0,400), pady=(30,0))
 
-        whats_new_text = Ctk.CTkLabel(self.current_frame, text="• Changed from Tkinter to CustomTkinter\n\n""• Updated UI\n\n""• Added ICO picture\n\n""• Cleaned up code\n\n""• MORE NEW TOOLS!\n\n""• New logo\n\n""• New brand name", justify="left" ,font=("Arial", 15))
+        whats_new_text = Ctk.CTkLabel(self.current_frame, text="• Changed from Tkinter to CustomTkinter\n\n""• Updated UI\n\n""• Added ICO picture\n\n""• Cleaned up code\n\n""• MORE NEW TOOLS!\n\n""• New logo\n\n""• New brand name\n\n""• Optimized for faster startup", justify="left" ,font=("Arial", 15))
         whats_new_text.pack(side="left", padx=(60,0), pady=(0,130))
 
-        def get_resource_path(relative_path):
-            if getattr(sys, 'frozen', False):  # Sjekker om programmet kjører som en .exe
-                base_path = sys._MEIPASS  # Midlertidig mappe for PyInstaller
-            else:
-                base_path = os.path.abspath(".")
-
-            return os.path.join(base_path, relative_path)
-
-        # Hent riktig filbane
         image_path = get_resource_path("wave.png")
 
-        # Opprett CustomTkinter Image med riktig bane
         water = Ctk.CTkImage(
             light_image=Image.open(image_path),
             dark_image=Image.open(image_path),
             size=(300, 200)
         )
 
-        # Bruk bildet i en CTkLabel
         water_wave = Ctk.CTkLabel(self.current_frame, text="", image=water)
         water_wave.pack(side="right", pady=(0, 150))
-
 
         button = Ctk.CTkButton(self.menu_frame, text="Youtube Downloader", command=self.show_youtube)
         button.pack(pady=20, padx=10)
@@ -130,7 +152,9 @@ class App(Ctk.CTk):
         def handle_youtube_download():
             youtube_url = url_entry.get()
             selected_file_type = file_type.get()
-            youtubedown.start_download(youtube_url, selected_file_type)
+            # Lazy import the youtube downloader module
+            from core.youtube_downloader import start_download
+            start_download(youtube_url, selected_file_type)
 
         youtube_page_label = Ctk.CTkLabel(self.current_frame, text="YouTube Video Downloader", font=("Arial",20, "bold"))
         youtube_page_label.pack(pady=20)
@@ -193,7 +217,7 @@ class App(Ctk.CTk):
                                            state="disabled")
         self.delete_button.pack(pady=10)
 
-        copyright_label = Ctk.CTkLabel(self.current_frame, text="© 2024 Dem Som Vet", font=("Arial", 10))
+        copyright_label = Ctk.CTkLabel(self.current_frame, text=" 2024 Dem Som Vet", font=("Arial", 10))
         copyright_label.pack(side="bottom", pady=10)
 
     def select_file(self):
@@ -207,40 +231,37 @@ class App(Ctk.CTk):
 
     def start_conversion(self):
         input_file = self.img_selected_file.get()
-        output_format = self.selected_format.get()
-
         if not input_file:
-            CTkMessagebox(title="Error", message="Please select an image file.", icon="warning")
+            CTkMessagebox(title="Error", message="Please select an image file first", icon="cancel")
             return
 
-        if not output_format:
-            CTkMessagebox(title="Error", message="Please select an output format.", icon="warning")
-            return
-
-        converted_file, error = imgConverter.convert_image(input_file, output_format)
-
-        if converted_file:
-            CTkMessagebox(title="Conversion Result", message=f"Image converted and saved as: {converted_file}", icon="info")
-            self.delete_button.configure(state="normal")
+        output_format = self.selected_format.get()
+        
+        # Lazy import the image converter module
+        from core.image_converter import convert_image
+        
+        success, result = convert_image(input_file, output_format)
+        
+        if success:
             self.original_file.set(input_file)
+            CTkMessagebox(title="Success", message=f"Image converted successfully!\nSaved to: {result}", icon="check")
+            self.delete_button.configure(state="normal")
         else:
-            CTkMessagebox(title="Error", message=f"An error occurred: {error}", icon="error")
+            CTkMessagebox(title="Error", message=f"Conversion failed: {result}", icon="cancel")
 
     def delete_original_image(self):
-        original_file_path = self.original_file.get()
-
-        if not original_file_path:
-            CTkMessagebox(title="Warning", message="No original image to delete.", icon="warning")
-            return
-
-        success, message = imgConverter.delete_original_image(original_file_path)
-
-        if success:
-            CTkMessagebox(title="Success", message=message, icon="info")
-            self.original_file.set("")
-            self.delete_button.configure(state="disabled")
-        else:
-            CTkMessagebox(title="Error", message=message, icon="error")
+        original_file = self.original_file.get()
+        if original_file:
+            # Lazy import the image converter module
+            from core.image_converter import delete_file
+            
+            success, message = delete_file(original_file)
+            
+            if success:
+                CTkMessagebox(title="Success", message="Original image deleted successfully", icon="check")
+                self.delete_button.configure(state="disabled")
+            else:
+                CTkMessagebox(title="Error", message=f"Failed to delete original image: {message}", icon="cancel")
 
     def show_speedtest(self):
         if self.current_frame:
@@ -260,24 +281,10 @@ class App(Ctk.CTk):
 
         def start():
             def speedtest_function():
-                st = speedtest.Speedtest()
-                info_label.configure(text="Finding best server...")
-                st.get_best_server()
-
-                res_dict = st.results.dict()
-                server_label.configure(text=f"HOST:{res_dict['server']['country']} | SUPPLIER:{res_dict['server']['sponsor']} | LATENCY: {res_dict['server']['latency']:.2f}")
-                time.sleep(2)
-
-
-                info_label.configure(text="Testing download speed.....")
-                download_speed = st.download(loading_bar) / 1000000  # Convert to Mbps
-
-                download_progressbar.set(0) 
-                info_label.configure(text="Testing upload speed.....")
-                upload_speed = st.upload(loading_bar) / 1000000  # Convert to Mbps
-
-                if download_speed and upload_speed:
-                    results.configure(text=f"Download Speed: {download_speed:.3f} Mbps\n"f"Upload Speed: {upload_speed:.3f} Mbps")
+                # Lazy import the speed tester module
+                from core.speed_tester import SpeedTester
+                speed_tester = SpeedTester()
+                speed_tester.start_test(download_progressbar, info_label, server_label, results)
 
             thread = threading.Thread(target=speedtest_function)
             thread.start()
@@ -314,16 +321,16 @@ class App(Ctk.CTk):
         video_label = Ctk.CTkLabel(self.current_frame, text="Video Converter", font=("Arial", 20 ,"bold"))
         video_label.pack(pady=(20))
             
-        select_file_button = Ctk.CTkButton(self.current_frame, text="Select Media File", command=lambda: file_var.set(videoConverter.select_file()))
+        select_file_button = Ctk.CTkButton(self.current_frame, text="Select Media File", command=lambda: file_var.set(self._get_video_converter().select_file()))
         select_file_button.pack(pady=20)
             
         format_menu = Ctk.CTkComboBox(self.current_frame, values=["mp4", "avi", "mkv", "mov", "mp3", "wav"], variable=format_var)
         format_menu.pack(pady=10)
             
-        convert_button = Ctk.CTkButton(self.current_frame, text="Convert", command=lambda: videoConverter.convert_media(file_var.get(), format_var.get()))
+        convert_button = Ctk.CTkButton(self.current_frame, text="Convert", command=lambda: self._get_video_converter().convert_media(file_var.get(), format_var.get()))
         convert_button.pack(pady=10)
             
-        delete_button = Ctk.CTkButton(self.current_frame, text="Delete Original File", command=lambda: videoConverter.delete_original(file_var.get()))
+        delete_button = Ctk.CTkButton(self.current_frame, text="Delete Original File", command=lambda: self._get_video_converter().delete_original(file_var.get()))
         delete_button.pack(pady=10)
             
         video_warning_label = Ctk.CTkLabel(self.current_frame, text="Warning: Big video files with high quality and frame rate can cause high pc usage!", font=("Arial",12), text_color="Red")
@@ -377,16 +384,22 @@ class App(Ctk.CTk):
                 output_file = os.path.splitext(self.selected_file)[0] + ".gif"
                 
                 try:
-                    (
-                        ffmpeg
-                        .input(self.selected_file)
-                        .filter('fps', fps=fps)
-                        .filter('scale', scale, -1)
-                        .output(output_file, format='gif')
-                        .run(cmd=ffmpeg_path, overwrite_output=True)
+                    # Lazy import the video converter module
+                    from core.video_converter import VideoConverter
+                    
+                    # Create an instance and convert to GIF
+                    converter = VideoConverter()
+                    success, result = converter.convert_to_gif(
+                        self.selected_file, 
+                        output_file, 
+                        fps=fps
                     )
-                    CTkMessagebox(title="Success", message=f"Successfully converted {self.selected_file} to {output_file}")
-                except ffmpeg.Error as e:
+                    
+                    if success:
+                        CTkMessagebox(title="Success", message=f"Successfully converted {self.selected_file} to {output_file}")
+                    else:
+                        CTkMessagebox(title="Error", message=f"Error converting file: {result}", icon="warning")
+                except Exception as e:
                     CTkMessagebox(title="Error", message=f"Error converting file: {e}", icon="warning")
         
             thread_gif = threading.Thread(target=gif_start)
@@ -425,10 +438,13 @@ class App(Ctk.CTk):
     def show_translate_page(self):
         if self.current_frame:
             self.current_frame.destroy()
-
+            
         self.destroy_main_interface()
-
-        pytesseract.pytesseract.tesseract_cmd = r"Tesseract-OCR\tesseract.exe"
+        
+        # Initialize variables for translator
+        self.custom_bbox = None
+        self.running = False
+        self.last_messages = []
 
         self.current_frame = Ctk.CTkFrame(self)
         self.current_frame.pack(fill="both", expand=True)
@@ -449,53 +465,50 @@ class App(Ctk.CTk):
         self.output_text = Ctk.CTkTextbox(self.current_frame, width=500, height=200)
         self.output_text.pack(pady=5)
 
-        self.start_button = Ctk.CTkButton(self.current_frame, text="Start", command=self.start_translation, state="disabled")
-        self.start_button.pack(pady=5)
+        button_frame = Ctk.CTkFrame(self.current_frame)
+        button_frame.pack(pady=5)
 
-        self.stop_button = Ctk.CTkButton(self.current_frame, text="Stop", command=self.stop_translation, state="disabled")
-        self.stop_button.pack(pady=5)
+        self.start_button = Ctk.CTkButton(button_frame, text="Start", command=self.start_translation, state="disabled")
+        self.start_button.pack(side="left", padx=5)
 
-        steps = [
-            "1. Refresh list and choose your window.",
-            "2. Click 'select area' button and a window will open with a screenshot of your chosen window",
-            "3. drag you mouse to select the chat that will be translated and monitored. when your done click 'enter' to confirm. if you dont want to confirm press 'c' which will not confirm and close the window.",
-            "4. when you have selected your area the chat will say something like: ✅ Area selected: (999, 999, 999, 999)",
-            "5. then all you need to do is click start and the app will read up every chat and translate them to Norwegian.",
-            "The language that the AI can read are the following: Russain, Norwagian, Chinese traditional, Chinese simple, Dutch, French, Spanish, Japanese and English. our team is working on adding more in the future!"
-        ]
+        self.stop_button = Ctk.CTkButton(button_frame, text="Stop", command=self.stop_translation, state="disabled")
+        self.stop_button.pack(side="left", padx=5)
 
+        back_button = Ctk.CTkButton(self.current_frame, text="Back to Home", command=self.show_homepage)
+        back_button.pack(pady=5)
 
-        def open_tutorial():
-            tutorial_window = Ctk.CTkToplevel(self.current_frame)
-            tutorial_window.geometry("500x400")
-            tutorial_window.title("Tutorial")
-            tutorial_window.attributes("-topmost", True)
-
-            main_frame = Ctk.CTkFrame(tutorial_window)
-            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-            for step in steps:
-                step_label = Ctk.CTkLabel(main_frame, text=step, font=("Arial", 14), wraplength=480)
-                step_label.pack(pady=5, padx=10, anchor="w")
-
-            close_button = Ctk.CTkButton(main_frame, text="Lukk", command=tutorial_window.destroy)
-            close_button.pack(pady=20)
-            
-        tutorial_button = Ctk.CTkButton(self.current_frame, text="Tutorial", command=open_tutorial, corner_radius=100, width=30)
-        tutorial_button.pack(side="right", pady=(0,5), padx=(0,5))
+        # Add instructions
+        self.output_text.insert("end", " Instructions:\n")
+        self.output_text.insert("end", " 1. Select a window from the dropdown\n")
+        self.output_text.insert("end", " 2. Click 'Select area' and draw a rectangle around the chat area\n")
+        self.output_text.insert("end", " 3. Click 'Start' to begin translation\n")
+        self.output_text.insert("end", " 4. Click 'Stop' when done\n\n")
 
     def get_window_list(self):
-        return [win.title for win in gw.getAllWindows() if win.title]
+        try:
+            # Lazy import pygetwindow
+            import pygetwindow as gw
+            windows = gw.getAllTitles()
+            return [w for w in windows if w]
+        except ImportError:
+            CTkMessagebox(title="Error", message="Could not import pygetwindow module. Make sure it's installed.", icon="warning")
+            return []
 
     def update_window_list(self):
         self.window_dropdown.configure(values=self.get_window_list())
+        self.window_var.set("")
 
     def get_window_bbox(self, window_title):
         try:
+            # Lazy import pygetwindow
+            import pygetwindow as gw
             win = gw.getWindowsWithTitle(window_title)[0]
             return (win.left, win.top, win.right, win.bottom)
+        except ImportError:
+            self.output_text.insert("end", " Error: pygetwindow module not found.\n")
+            return None
         except IndexError:
-            self.output_text.insert("end", "❌ Window not found! Try again.\n")
+            self.output_text.insert("end", " Window not found! Try again.\n")
             return None
 
     def select_capture_area(self):
@@ -505,79 +518,98 @@ class App(Ctk.CTk):
         if not bbox:
             return
 
-        x1, y1, x2, y2 = bbox
+        try:
+            # Lazy import required modules
+            import mss
+            import numpy as np
+            import cv2
+            
+            x1, y1, x2, y2 = bbox
 
-        with mss.mss() as sct:
-            screenshot = np.array(sct.grab(bbox))
-            screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
+            with mss.mss() as sct:
+                screenshot = np.array(sct.grab(bbox))
+                screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
 
-        # Sett maksimal bredde og høyde for OpenCV-vinduet
-        MAX_WIDTH = 800   # Juster denne for å endre max bredde
-        MAX_HEIGHT = 600  # Juster denne for å endre max høyde
+            MAX_WIDTH = 800
+            MAX_HEIGHT = 600
 
-        # Finn skalering basert på maks verdier
-        height, width, _ = screenshot.shape
-        scale_factor = min(MAX_WIDTH / width, MAX_HEIGHT / height, 1.0)  # Maks 1.0 (ingen oppskalering)
+            height, width, _ = screenshot.shape
+            scale_factor = min(MAX_WIDTH / width, MAX_HEIGHT / height, 1.0)
 
-        # Skaler bildet om nødvendig
-        if scale_factor < 1.0:
-            resized_screenshot = cv2.resize(screenshot, (0, 0), fx=scale_factor, fy=scale_factor)
-        else:
-            resized_screenshot = screenshot
+            if scale_factor < 1.0:
+                resized_screenshot = cv2.resize(screenshot, (0, 0), fx=scale_factor, fy=scale_factor)
+            else:
+                resized_screenshot = screenshot
 
-        # Velg område med cv2.selectROI()
-        roi = cv2.selectROI("Select area (Press ENTER to confirm)", resized_screenshot, fromCenter=False, showCrosshair=True)
-        cv2.destroyAllWindows()
+            roi = cv2.selectROI("Select area (Press ENTER to confirm)", resized_screenshot, fromCenter=False, showCrosshair=True)
+            cv2.destroyAllWindows()
 
-        if roi != (0, 0, 0, 0):
-            x, y, w, h = roi
+            if roi != (0, 0, 0, 0):
+                x, y, w, h = roi
 
-            # Konverter ROI-koordiner tilbake til original størrelse hvis bildet var skalert
-            x = int(x / scale_factor)
-            y = int(y / scale_factor)
-            w = int(w / scale_factor)
-            h = int(h / scale_factor)
+                x = int(x / scale_factor)
+                y = int(y / scale_factor)
+                w = int(w / scale_factor)
+                h = int(h / scale_factor)
 
-            self.custom_bbox = (x1 + x, y1 + y, x1 + x + w, y1 + y + h)
-            self.output_text.insert("end", f"✅ Area selected: {self.custom_bbox}\n")
-            self.start_button.configure(state="normal")
-
+                self.custom_bbox = (x1 + x, y1 + y, x1 + x + w, y1 + y + h)
+                self.output_text.insert("end", f" Area selected: {self.custom_bbox}\n")
+                self.start_button.configure(state="normal")
+        except ImportError as e:
+            self.output_text.insert("end", f" Error: Missing required module - {str(e)}.\n")
+        except Exception as e:
+            self.output_text.insert("end", f" Error: {str(e)}.\n")
 
     def capture_text_from_window(self):
-        with mss.mss() as sct:
-            while self.running:
-                if self.custom_bbox:
-                    screenshot = sct.grab(self.custom_bbox)
-                    img = np.array(screenshot)
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        try:
+            # Lazy import required modules
+            import mss
+            import numpy as np
+            import cv2
+            import pytesseract
+            from deep_translator import GoogleTranslator
+            
+            # Set tesseract path
+            pytesseract.pytesseract.tesseract_cmd = r"Tesseract-OCR\tesseract.exe"
+            
+            with mss.mss() as sct:
+                while self.running:
+                    if self.custom_bbox:
+                        screenshot = sct.grab(self.custom_bbox)
+                        img = np.array(screenshot)
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-                    # OCR - use multiple languages
-                    extracted_text = pytesseract.image_to_string(gray, lang="rus+eng+deu+fra+spa+ita+chi_sim+jpn").strip()
+                        extracted_text = pytesseract.image_to_string(gray, lang="rus+eng+deu+fra+spa+ita+chi_sim+jpn").strip()
 
-                    # Split text into separate messages
-                    messages = extracted_text.split("\n")
+                        messages = extracted_text.split("\n")
 
-                    for message in messages:
-                        message = message.strip()
-                        if message and message not in self.last_messages:
-                            self.last_messages.append(message)  # Store message to prevent repetition
+                        for message in messages:
+                            message = message.strip()
+                            if message and message not in self.last_messages:
+                                self.last_messages.append(message)
 
-                            # Ensure list doesn't grow too large
-                            if len(self.last_messages) > 10:
-                                self.last_messages.pop(0)
+                                if len(self.last_messages) > 10:
+                                    self.last_messages.pop(0)
 
-                            try:
-                                translated_text = GoogleTranslator(source="auto", target="no").translate(message)
-                                self.output_text.insert("end", f"{translated_text}\n")
-                                self.output_text.yview_moveto(1)
-                            except Exception as e:
-                                self.output_text.insert("end", "⚠ Translation error, check your connection!\n")
+                                try:
+                                    translated_text = GoogleTranslator(source="auto", target="no").translate(message)
+                                    self.output_text.insert("end", f" {message} → {translated_text}\n")
+                                    self.output_text.see("end")
+                                except Exception as e:
+                                    self.output_text.insert("end", f" Error translating: {str(e)}\n")
+                                    self.output_text.see("end")
 
-                time.sleep(1)
+                        time.sleep(1)
+        except ImportError as e:
+            self.output_text.insert("end", f" Error: Missing required module - {str(e)}.\n")
+            self.running = False
+        except Exception as e:
+            self.output_text.insert("end", f" Error: {str(e)}.\n")
+            self.running = False
 
     def start_translation(self):
         if not self.custom_bbox:
-            self.output_text.insert("end", "⚠ Select an area first!\n")
+            self.output_text.insert("end", " Select an area first!\n")
             return
 
         self.running = True
@@ -590,29 +622,51 @@ class App(Ctk.CTk):
         self.running = False
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
-        self.output_text.insert("end", "🛑 Translation stopped.\n")
+        self.output_text.insert("end", " Translation stopped.\n")
 
     def destroy_main_interface(self):
-            if hasattr(self, 'main_frame') and self.main_frame:
-                self.main_frame.destroy()
-                self.main_frame = None  # Fjern referanse
-
-            if hasattr(self, 'info_frame') and self.info_frame:
-                self.info_frame.destroy()
-                self.info_frame = None  # Fjern referanse
+        # Clean up main frame
+        if hasattr(self, 'main_frame') and self.main_frame:
+            self.main_frame.destroy()
+            self.main_frame = None
+            
+        # Clean up buttons frame
+        if hasattr(self, 'buttons_frame') and self.buttons_frame:
+            self.buttons_frame.destroy()
+            self.buttons_frame = None
+            
+        # Clean up info frame
+        if hasattr(self, 'info_frame') and self.info_frame:
+            self.info_frame.destroy()
+            self.info_frame = None
+            
+        # Remove any keyboard hotkeys
+        if hasattr(self, 'hotkey') and self.hotkey:
+            try:
+                import keyboard
+                keyboard.remove_hotkey(self.hotkey.get())
+            except:
+                pass
                 
-            if hasattr(self, 'buttons_frame') and self.buttons_frame:
-                self.buttons_frame.destroy()
-                self.buttons_frame = None  # Set to None after destruction
-
+        if hasattr(self, 'killswitch_hotkey') and self.killswitch_hotkey:
+            try:
+                import keyboard
+                keyboard.remove_hotkey('Ctrl+Shift+K')
+            except:
+                pass
+                
     def show_autoclicker(self):
+        # First, destroy any existing frames
         if self.current_frame:
             self.current_frame.destroy()
             
+        # Make sure to clean up any existing UI components
         self.destroy_main_interface()
-
+        
+        # Reset the stop thread flag
         self.stop_main_thread = False
 
+        # Initialize variables for auto clicker
         self.interval_ms = Ctk.StringVar(value='100')
         self.interval_s = Ctk.StringVar(value='0')
         self.interval_min = Ctk.StringVar(value='0')
@@ -628,7 +682,6 @@ class App(Ctk.CTk):
 
         self.super_mode = Ctk.BooleanVar(value=False)
 
-            # Advanced options
         self.random_time_offset_enabled = Ctk.BooleanVar(value=False)
         self.random_time_offset = Ctk.StringVar(value='0')
 
@@ -644,17 +697,20 @@ class App(Ctk.CTk):
 
         self.killswitch_hotkey = Ctk.StringVar(value='Ctrl+Shift+K')
 
-
         self.random_time_offset.trace('w', lambda x, y, z: self.validate(self.random_time_offset))
         self.random_mouse_offset_x.trace('w', lambda x, y, z: self.validate(self.random_mouse_offset_x))
         self.random_mouse_offset_y.trace('w', lambda x, y, z: self.validate(self.random_mouse_offset_y))
         self.hold_duration.trace('w', lambda x, y, z: self.validate(self.hold_duration))
         self.repeat_value.trace('w', lambda x, y, z: self.validate(self.repeat_value))
 
+        # Create UI components
         self.main_frame = MainFrame(self)
         self.buttons_frame = ButtonsFrame(self)
         self.info_frame = InfoFrame(self)
 
+        # Add keyboard hotkey
+        import keyboard
+        keyboard.add_hotkey((self.hotkey.get()), self.start_clicking)
         keyboard.add_hotkey('Ctrl+Shift+K', self.destroy)
 
     def get_interval_sum(self) -> float | int:
@@ -666,112 +722,79 @@ class App(Ctk.CTk):
     def start_clicking(self) -> None:
         self.stop_main_thread = False
 
+        import keyboard
         keyboard.remove_hotkey(self.hotkey.get())
         self.buttons_frame.start_button.configure(state='disabled')
         self.buttons_frame.stop_button.configure(state='normal')
+        self.buttons_frame.change_hotkey_button.configure(state='disabled')
 
+        import keyboard
         keyboard.add_hotkey(self.hotkey.get(), self.stop_clicking)
 
-        threading.Thread(
-            target=self.clicking_thread,
-            daemon=True
-        ).start()
+        # Use the modular auto clicker with lazy loading
+        from core.auto_clicker import AutoClicker
+        
+        # Create auto clicker instance
+        self.auto_clicker = AutoClicker()
+        
+        # Configure auto clicker settings
+        self.auto_clicker.mouse_button = self.mouse_button.get().lower()
+        self.auto_clicker.interval_ms = int(self.interval_ms.get()) if self.interval_ms.get() else 0
+        self.auto_clicker.interval_s = int(self.interval_s.get()) if self.interval_s.get() else 0
+        self.auto_clicker.interval_min = int(self.interval_min.get()) if self.interval_min.get() else 0
+        self.auto_clicker.interval_hr = int(self.interval_hr.get()) if self.interval_hr.get() else 0
+        
+        # Advanced settings
+        self.auto_clicker.random_time_offset_enabled = self.random_time_offset_enabled.get()
+        self.auto_clicker.random_time_offset = int(self.random_time_offset.get()) if self.random_time_offset.get() else 0
+        self.auto_clicker.random_mouse_offset_enabled = self.random_mouse_offset_enabled.get()
+        self.auto_clicker.random_mouse_offset_x = int(self.random_mouse_offset_x.get()) if self.random_mouse_offset_x.get() else 0
+        self.auto_clicker.random_mouse_offset_y = int(self.random_mouse_offset_y.get()) if self.random_mouse_offset_y.get() else 0
+        self.auto_clicker.click_type = self.click_type.get()
+        self.auto_clicker.hold_duration = int(self.hold_duration.get()) if self.hold_duration.get() else 0
+        self.auto_clicker.repeat_option = self.repeat_option.get()
+        self.auto_clicker.repeat_value = int(self.repeat_value.get()) if self.repeat_value.get() else 0
+        self.auto_clicker.super_mode = self.super_mode.get()
+        
+        # Set UI callbacks
+        self.auto_clicker.set_ui_callbacks(
+            on_click_count_changed=lambda count: self.info_frame.click_counter.configure(text=f"Clicks: {count}"),
+            on_status_changed=lambda running: self.update_clicking_status(running)
+        )
+        
+        # Start clicking
+        self.auto_clicker.start_clicking()
 
     def stop_clicking(self) -> None:
         self.stop_main_thread = True
 
+        import keyboard
         keyboard.remove_hotkey(self.hotkey.get())
 
         self.buttons_frame.start_button.configure(state='normal')
         self.buttons_frame.stop_button.configure(state='disabled')
+        self.buttons_frame.change_hotkey_button.configure(state='normal')
 
+        import keyboard
         keyboard.add_hotkey(self.hotkey.get(), self.start_clicking)
-
-    def clicking_thread(self) -> None:
-
-        if self.super_mode.get():
-            user32 = ctypes.WinDLL('user32', use_last_error=True)
-                # Directly calling system to click even faster (really unstable)
-                # Ignores all preferences for speed performance
-                # 0x201 - LEFTBUTTONDOWN
-                # 0x202 - LEFTBUTTONUP
-            while not self.stop_main_thread:
-                user32.mouse_event(0x201, 0, 0, 0, 0)
-                user32.mouse_event(0x202, 0, 0, 0, 0)
-            exit()
-
-        mouse_button = self.mouse_button.get().lower()
-        click_interval = self.get_interval_sum()
-
-        if self.repeat_option.get() == 'Repeat':
-            self.repeat_clicking(mouse_button, click_interval)
+        
+        # Stop the auto clicker if it exists
+        if hasattr(self, 'auto_clicker') and self.auto_clicker:
+            self.auto_clicker.stop_clicking()
+    
+    def update_clicking_status(self, running):
+        """Update UI based on clicking status"""
+        if running:
+            self.buttons_frame.start_button.configure(state='disabled')
+            self.buttons_frame.stop_button.configure(state='normal')
+            self.buttons_frame.change_hotkey_button.configure(state='disabled')
         else:
-            self.toggle_clicking(mouse_button, click_interval)
-
-        exit()
-
-    def repeat_clicking(self, mouse_button, click_interval) -> None:
-        repeat_amount = int(self.repeat_value.get())
-        while not self.stop_main_thread and repeat_amount > 0:
-
-            if self.random_mouse_offset_enabled:
-                x = random.randint(
-                    -int(self.random_mouse_offset_x.get()), int(self.random_mouse_offset_x.get())
-                )
-                y = random.randint(
-                    -int(self.random_mouse_offset_y.get()), int(self.random_mouse_offset_y.get())
-                )
-                mouse.move(x, y, absolute=False)
-
-            mouse.press(mouse_button)
-            sleep(int(self.hold_duration.get()) / 1000)
-            mouse.release(mouse_button)
-
-            if self.click_type.get() == 'Double':
-                mouse.press(mouse_button)
-                sleep(int(self.hold_duration.get()) / 1000)
-                mouse.release(mouse_button)
-
-            sleep(
-                click_interval + random.uniform(0, int(self.random_time_offset.get()) / 1000)
-                if self.random_time_offset_enabled else click_interval
-            )
-
-            if self.random_mouse_offset_enabled:
-                mouse.move(-x, -y, absolute=False)
-
-            repeat_amount -= 1
-
-        self.stop_clicking()
-
-    def toggle_clicking(self, mouse_button, click_interval) -> None:
-        while not self.stop_main_thread:
-
-            if self.random_mouse_offset_enabled.get():
-                x = random.randint(
-                        -int(self.random_mouse_offset_x.get()), int(self.random_mouse_offset_x.get())
-                )
-                y = random.randint(
-                    -int(self.random_mouse_offset_y.get()), int(self.random_mouse_offset_y.get())
-                )
-                mouse.move(x, y, absolute=False)
-
-            mouse.press(mouse_button)
-            sleep(int(self.hold_duration.get()) / 1000)
-            mouse.release(mouse_button)
-
-            if self.click_type.get() == 'Double':
-                mouse.press(mouse_button)
-                sleep(int(self.hold_duration.get()) / 1000)
-                mouse.release(mouse_button)
-
-            sleep(click_interval + random.uniform(0, int(self.random_time_offset.get()) / 1000)
-                if self.random_time_offset_enabled else click_interval)
-
-            if self.random_mouse_offset_enabled.get():
-                mouse.move(-x, -y, absolute=False)
+            self.buttons_frame.start_button.configure(state='normal')
+            self.buttons_frame.stop_button.configure(state='disabled')
+            self.buttons_frame.change_hotkey_button.configure(state='normal')
 
     def change_hotkey(self) -> None:
+        import keyboard
         keyboard.remove_hotkey(self.hotkey.get())
         hotkey_created = False
         new_hotkey = []
@@ -788,15 +811,18 @@ class App(Ctk.CTk):
                     new_hotkey.append(key.name)
                     used_modifiers.append(key.name)
 
+        import keyboard
         keyboard.hook(callback)
 
         def wait_for_callback() -> None:
             while not hotkey_created:
                 sleep(0.01)
+            import keyboard
             keyboard.unhook(callback)
             hotkey = '+'.join(new_hotkey)
 
             self.hotkey.set(hotkey)
+            import keyboard
             keyboard.add_hotkey(self.hotkey.get(), self.start_clicking)
 
             self.buttons_frame.change_hotkey_button.configure(text='Change Hotkey')
@@ -816,7 +842,6 @@ class App(Ctk.CTk):
 
     @staticmethod
     def validate(variable: Ctk.StringVar) -> None:
-        # Should be used in entry traces
         variable_text = variable.get()
         for letter in variable_text:
             if not letter.isdigit():
@@ -919,6 +944,7 @@ class ButtonsFrame(Ctk.CTkFrame):
         )
         self.change_hotkey_button.pack(side='left', expand=True, padx=5)
 
+        import keyboard
         keyboard.add_hotkey((master.hotkey.get()), master.start_clicking)
 
 
@@ -957,6 +983,7 @@ class AdvancedOptions(Ctk.CTkToplevel):
         self.killswitch = KillSwitch(self)
 
     def change_killswitch_hotkey(self, buttons_frame):
+        import keyboard
         keyboard.remove_hotkey(self.root.killswitch_hotkey.get())
         hotkey_created = False
         new_hotkey = []
@@ -973,15 +1000,18 @@ class AdvancedOptions(Ctk.CTkToplevel):
                 new_hotkey.append(key.name)
                 used_modifiers.append(key.name)
 
+        import keyboard
         keyboard.hook(callback)
 
         def wait_for_callback():
             while not hotkey_created:
                 sleep(0.01)
+            import keyboard
             keyboard.unhook(callback)
             hotkey = '+'.join(new_hotkey)
 
             self.root.killswitch_hotkey.set(hotkey)
+            import keyboard
             keyboard.add_hotkey(self.root.killswitch_hotkey.get(), self.root.destroy)
 
             buttons_frame.change_killswitch_hotkey.configure(text='Change KillSwitch Hotkey')

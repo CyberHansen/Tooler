@@ -24,7 +24,6 @@ def download_youtube_video(youtube_url, output_path, file_type):
         else:
             return "Unsupported file type."
 
-        # Før nedlastingen, hent eksisterende filer i output_path
         existing_files = set(os.listdir(output_path))
 
         video_path = os.path.join(output_path, "%(title)s.%(ext)s")
@@ -33,14 +32,12 @@ def download_youtube_video(youtube_url, output_path, file_type):
             "-f", format_option,
             "-o", video_path,
             "--ffmpeg-location", ffmpeg_path,
-            "--postprocessor-args", "-y"  # Legger til -y for FFmpeg
+            "--postprocessor-args", "-y"
         ] + extra_options + [youtube_url]
   
 
-        # Run yt-dlp without printing to terminal
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Finn den opprinnelige nedlastede filen før den konverteres
         new_files = set(os.listdir(output_path)) - existing_files
         if new_files:
             original_file = max(new_files, key=lambda f: os.path.getmtime(os.path.join(output_path, f)))

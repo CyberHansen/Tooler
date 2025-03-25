@@ -8,7 +8,6 @@ import threading
 import time
 from deep_translator import GoogleTranslator
 
-# Konfigurer Tesseract (endre path om nødvendig)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\mathi\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
 class ChatTranslatorApp(ctk.CTk):
@@ -19,11 +18,10 @@ class ChatTranslatorApp(ctk.CTk):
         self.geometry("600x450")
         self.running = False
         self.bbox = None
-        self.custom_bbox = None  # User-selected area
-        self.last_messages = []  # Stores last translated messages
+        self.custom_bbox = None 
+        self.last_messages = []  
 
-        # GUI layout
-        ctk.set_appearance_mode("dark")  # Dark mode
+        ctk.set_appearance_mode("dark")
         self.create_widgets()
 
     def create_widgets(self):
@@ -76,28 +74,23 @@ class ChatTranslatorApp(ctk.CTk):
             screenshot = np.array(sct.grab(bbox))
             screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
 
-        # Sett maksimal bredde og høyde for OpenCV-vinduet
-        MAX_WIDTH = 800   # Juster denne for å endre max bredde
-        MAX_HEIGHT = 600  # Juster denne for å endre max høyde
+        MAX_WIDTH = 800
+        MAX_HEIGHT = 600
 
-        # Finn skalering basert på maks verdier
         height, width, _ = screenshot.shape
-        scale_factor = min(MAX_WIDTH / width, MAX_HEIGHT / height, 1.0)  # Maks 1.0 (ingen oppskalering)
+        scale_factor = min(MAX_WIDTH / width, MAX_HEIGHT / height, 1.0)
 
-        # Skaler bildet om nødvendig
         if scale_factor < 1.0:
             resized_screenshot = cv2.resize(screenshot, (0, 0), fx=scale_factor, fy=scale_factor)
         else:
             resized_screenshot = screenshot
 
-        # Velg område med cv2.selectROI()
         roi = cv2.selectROI("Select area (Press ENTER to confirm)", resized_screenshot, fromCenter=False, showCrosshair=True)
         cv2.destroyAllWindows()
 
         if roi != (0, 0, 0, 0):
             x, y, w, h = roi
 
-            # Konverter ROI-koordiner tilbake til original størrelse hvis bildet var skalert
             x = int(x / scale_factor)
             y = int(y / scale_factor)
             w = int(w / scale_factor)
@@ -116,18 +109,15 @@ class ChatTranslatorApp(ctk.CTk):
                     img = np.array(screenshot)
                     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-                    # OCR - use multiple languages
                     extracted_text = pytesseract.image_to_string(gray, lang="rus+eng+deu+fra+spa+ita+chi_sim+jpn").strip()
 
-                    # Split text into separate messages
                     messages = extracted_text.split("\n")
 
                     for message in messages:
                         message = message.strip()
                         if message and message not in self.last_messages:
-                            self.last_messages.append(message)  # Store message to prevent repetition
+                            self.last_messages.append(message)
 
-                            # Ensure list doesn't grow too large
                             if len(self.last_messages) > 10:
                                 self.last_messages.pop(0)
 
